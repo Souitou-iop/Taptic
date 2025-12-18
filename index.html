@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机震动控制器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 10px; font-size: 1.5rem; }
+        p { color: #aaa; margin-bottom: 30px; font-size: 0.9rem; }
+
+        .status-box {
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .supported { background-color: #1e4620; color: #4caf50; border: 1px solid #4caf50; }
+        .unsupported { background-color: #4a1818; color: #ff5252; border: 1px solid #ff5252; }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            color: white;
+            /* 禁止双击缩放 */
+            touch-action: manipulation; 
+        }
+
+        button:active { transform: scale(0.95); }
+
+        .btn-soft { background-color: #2196F3; }
+        .btn-hard { background-color: #673AB7; }
+        .btn-sos { background-color: #FF9800; }
+        .btn-heart { background-color: #E91E63; }
+        
+        .btn-stop {
+            width: 100%;
+            max-width: 400px;
+            background-color: #f44336;
+            font-size: 1.2rem;
+            margin-top: 10px;
+            padding: 20px;
+        }
+
+        .custom-area {
+            margin-top: 30px;
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 360px;
+        }
+        
+        input {
+            width: 70%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #333;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        /* 震动动画特效 */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .is-vibrating {
+            animation: shake 0.5s;
+            animation-iteration-count: infinite; 
+            border: 2px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>手机马达震动测试</h1>
+    
+    <div id="status" class="status-box">检测中...</div>
+
+    <div class="btn-grid">
+        <button class="btn-soft" onclick="startVibrate(50)">短触 (50ms)</button>
+        <button class="btn-hard" onclick="startVibrate(500)">长震 (500ms)</button>
+        <button class="btn-sos" onclick="startVibrate([200,100,200,100,200,300,500,100,500,100,500,300,200,100,200,100,200])">SOS 模式</button>
+        <button class="btn-heart" onclick="startVibrate([100, 100, 100, 800])">心跳模式</button>
+    </div>
+
+    <button class="btn-stop" onclick="stopVibrate()">🛑 停止所有震动</button>
+
+    <div class="custom-area">
+        <h3>自定义模式</h3>
+        <p style="margin-bottom: 10px;">输入毫秒数 (如: 200,100,200)</p>
+        <input type="text" id="customInput" placeholder="震动,暂停,震动..." value="1000, 200, 1000">
+        <button class="btn-soft" style="width: 100%; margin-top: 10px;" onclick="runCustom()">运行自定义</button>
+    </div>
+
+    <p style="margin-top: 40px; font-size: 0.8rem;">注意：iOS 设备 (iPhone) 不支持网页震动 API。<br>必须保持屏幕亮起且在前台运行。</p>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const body = document.body;
+
+        // 1. 检测兼容性
+        if ("vibrate" in navigator) {
+            statusDiv.textContent = "✅ 当前设备支持震动 API";
+            statusDiv.className = "status-box supported";
+        } else {
+            statusDiv.textContent = "❌ 当前设备 (如 iPhone) 不支持震动";
+            statusDiv.className = "status-box unsupported";
+        }
+
+        // 2. 震动核心函数
+        function startVibrate(pattern) {
+            // 停止之前的
+            stopVibrate();
+
+            if (!("vibrate" in navigator)) {
+                alert("抱歉，您的浏览器不支持震动功能。");
+                return;
+            }
+
+            // 执行震动
+            navigator.vibrate(pattern);
+            
+            // 视觉反馈：添加震动动画
+            body.classList.add('is-vibrating');
+
+            // 如果是单次震动，自动移除动画；如果是循环模式（数组），需要手动停止
+            if (typeof pattern === 'number') {
+                setTimeout(() => body.classList.remove('is-vibrating'), pattern);
+            }
+        }
+
+        // 3. 停止函数
+        function stopVibrate() {
+            if ("vibrate" in navigator) {
+                navigator.vibrate(0);
+            }
+            body.classList.remove('is-vibrating');
+        }
+
+        // 4. 自定义输入处理
+        function runCustom() {
+            const input = document.getElementById('customInput').value;
+            // 将字符串 "200,100,200" 转换为数组 [200, 100, 200]
+            try {
+                const pattern = input.split(/[,，\s]+/).map(num => parseInt(num.trim())).filter(n => !isNaN(n));
+                
+                if (pattern.length > 0) {
+                    startVibrate(pattern);
+                } else {
+                    alert("请输入有效的数字格式");
+                }
+            } catch (e) {
+                alert("格式错误");
+            }
+        }
+    </script>
+</body>
+</html>
