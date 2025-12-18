@@ -1,79 +1,38 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS 震动模拟</title>
-    <style>
-        body { background: #111; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
-        button { padding: 20px 40px; font-size: 18px; border-radius: 12px; background: #007AFF; color: white; border: none; margin-top: 20px;}
-        button:active { background: #0056b3; transform: scale(0.95); }
-        .note { color: #888; margin-top: 20px; font-size: 14px; max-width: 300px; text-align: center;}
-    </style>
-</head>
-<body>
+<h3>模拟震动强度（仅限安卓高端机）</h3>
+<div class="btn-grid">
+    <button class="btn-hard" onclick="vibrateLevel('high')">强震动 (100%)</button>
+    <button class="btn-sos" onclick="vibrateLevel('medium')">模拟中等 (50%)</button>
+    <button class="btn-soft" onclick="vibrateLevel('low')">模拟微弱 (20%)</button>
+</div>
 
-    <h1>iOS 震动模拟器</h1>
-    <p>利用扬声器低频共振</p>
-    
-    <button id="iosVibrateBtn">点击测试震感</button>
+<script>
+    function vibrateLevel(level) {
+        if (!navigator.vibrate) return;
 
-    <div class="note">
-        ⚠️ 必须满足以下条件才有效：<br>
-        1. 关闭手机左侧静音开关<br>
-        2. 媒体音量调至最大<br>
-        3. 会发出"嗡嗡"的声音
-    </div>
+        switch (level) {
+            case 'high':
+                // 传统方式：持续震动 200ms
+                console.log("强震动");
+                navigator.vibrate(200);
+                break;
 
-    <script>
-        // 初始化音频上下文
-        let audioCtx;
+            case 'medium':
+                // 模拟中等：震 15ms，停 15ms，循环 10 次
+                // 总时长约 300ms，但因为有间隙，感觉会弱一些
+                let mediumPattern = [];
+                for(let i=0; i<10; i++) mediumPattern.push(15, 15);
+                console.log("模拟中震动");
+                navigator.vibrate(mediumPattern);
+                break;
 
-        function initAudio() {
-            if (!audioCtx) {
-                // 兼容 iOS 的 WebKit 前缀
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
+            case 'low':
+                // 模拟微弱：震 5ms，停 20ms，循环 15 次
+                // 震动时间极短，让马达刚起步就停下
+                let lowPattern = [];
+                for(let i=0; i<15; i++) lowPattern.push(5, 20);
+                console.log("模拟弱震动");
+                navigator.vibrate(lowPattern);
+                break;
         }
-
-        function triggerIOSHaptic() {
-            initAudio();
-
-            // 如果音频上下文被挂起（iOS 常见限制），需要恢复
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-
-            // 1. 创建振荡器（发声源）
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            // 2. 关键设置：波形和频率
-            // 'square' (方波) 或 'sawtooth' (锯齿波) 比正弦波更有力量感
-            oscillator.type = 'square'; 
-            
-            // 3. 频率设置：
-            // iPhone 的共振频率通常在 40Hz 到 60Hz 之间
-            oscillator.frequency.setValueAtTime(55, audioCtx.currentTime); 
-
-            // 4. 音量包络：模拟震动的"打击感"
-            // 瞬间音量最大，然后迅速停止
-            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2); // 0.2秒后停止
-
-            // 5. 连接并播放
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.2);
-        }
-
-        // 绑定事件
-        // 注意：iOS 要求音频必须在用户交互（click/touch）中触发
-        document.getElementById('iosVibrateBtn').addEventListener('click', triggerIOSHaptic);
-        document.getElementById('iosVibrateBtn').addEventListener('touchstart', triggerIOSHaptic);
-
-    </script>
-</body>
-</html>
+    }
+</script>
